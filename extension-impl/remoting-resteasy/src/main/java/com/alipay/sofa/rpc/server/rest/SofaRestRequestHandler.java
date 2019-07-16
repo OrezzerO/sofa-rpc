@@ -122,9 +122,12 @@ public class SofaRestRequestHandler extends SimpleChannelInboundHandler {
                 }
             } finally {
                 /**
-                 * issue: https://github.com/sofastack/sofa-rpc/issues/592
+                 * 在 ppd ,我们使用 netty 4.0.x
                  */
-                request.releaseContentBuffer();
+                //                /**
+                //                 * issue: https://github.com/sofastack/sofa-rpc/issues/592
+                //                 */
+                //                request.releaseContentBuffer();
                 if (EventBus.isEnable(ServerEndHandleEvent.class)) {
                     EventBus.post(new ServerEndHandleEvent());
                 }

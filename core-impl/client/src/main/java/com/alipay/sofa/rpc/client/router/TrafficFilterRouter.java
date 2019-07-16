@@ -30,6 +30,7 @@ import com.alipay.sofa.rpc.log.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Created on 2019-07-04.
@@ -38,15 +39,20 @@ import java.util.List;
  */
 @Extension(value = "upFilter", order = -16000)
 @AutoActive(consumerSide = true)
-public class UpFilterRouter extends Router {
+public class TrafficFilterRouter extends Router {
 
-    public static final String  UP_KEY      = "up";
-    public static final String  UP_VALUE_UP = "1";
-    private static final Logger log         = LoggerFactory.getLogger(UpFilterRouter.class);
+    public static final String   UP_KEY      = "up";
+    public static final String   UP_VALUE_UP = "1";
+    private static final Logger  log         = LoggerFactory.getLogger(TrafficFilterRouter.class);
+    private static AtomicBoolean FORCE_CLOSE = new AtomicBoolean(false);
+
+    public static void setForceClose(boolean forceClose) {
+        FORCE_CLOSE.set(forceClose);
+    }
 
     @Override
     public List<ProviderInfo> route(SofaRequest request, List<ProviderInfo> providerInfos) {
-        if (providerInfos == null || providerInfos.isEmpty()) {
+        if (FORCE_CLOSE.get() || providerInfos == null || providerInfos.isEmpty()) {
             return providerInfos;
         }
 
@@ -57,7 +63,8 @@ public class UpFilterRouter extends Router {
             }
         }
         if (upProviders.isEmpty()) {
-            SofaRpcRuntimeException exception = new SofaRpcRuntimeException("Provider 流量开关未打开, 请联系相关人员开启流量");
+
+            SofaRpcRuntimeException exception = new SofaRpcRuntimeException("Provider 流量开关未打开, 请联系相关人员开启流量. InterfaceName: " + request.getInterfaceName());
             log.error(exception.getMessage(), exception);
             throw exception;
         } else {
