@@ -27,7 +27,7 @@ public final class Version {
     /**
      * 当前RPC版本，例如：5.6.7
      */
-    public static final String VERSION       = "5.6.111-SNAPSHOT";
+    public static final String VERSION       = "5.6.0-ppd-RC1";
 
     /**
      * 当前RPC版本，例如： 5.6.7 对应 50607
