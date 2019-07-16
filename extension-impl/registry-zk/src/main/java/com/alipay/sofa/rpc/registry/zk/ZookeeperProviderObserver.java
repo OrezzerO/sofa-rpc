@@ -74,13 +74,15 @@ public class ZookeeperProviderObserver {
     /**
      * Update Provider
      *
-     * @param config       ConsumerConfig
-     * @param providerPath Provider path of zookeeper
-     * @param data         Event data
-     * @param currentData  provider data list
+     * @param config              ConsumerConfig
+     * @param providerPath        Provider path of zookeeper
+     * @param data                Event data
+     * @param currentData         provider data list
+     * @param currentConfigurator
      * @throws UnsupportedEncodingException decode error
      */
-    public void updateProvider(ConsumerConfig config, String providerPath, ChildData data, List<ChildData> currentData)
+    public void updateProvider(ConsumerConfig config, String providerPath, ChildData data, List<ChildData> currentData,
+                               List<ChildData> currentConfigurator)
         throws UnsupportedEncodingException {
         if (LOGGER.isInfoEnabled(config.getAppName())) {
             LOGGER.infoWithApp(config.getAppName(),
@@ -88,19 +90,21 @@ public class ZookeeperProviderObserver {
                     StringSerializer.decode(data.getData()) + "]" + ", stat=[" + data.getStat() + "]" + ", list=[" +
                     currentData.size() + "]");
         }
-        notifyListeners(config, providerPath, currentData, false);
+        notifyListeners(config, providerPath, currentData, currentConfigurator, false);
     }
 
     /**
      * Remove Provider
      *
-     * @param config       ConsumerConfig
-     * @param providerPath Provider path of zookeeper
-     * @param data         Event data
-     * @param currentData  provider data list
+     * @param config              ConsumerConfig
+     * @param providerPath        Provider path of zookeeper
+     * @param data                Event data
+     * @param currentData         provider data list
+     * @param currentConfigurator
      * @throws UnsupportedEncodingException decode error
      */
-    public void removeProvider(ConsumerConfig config, String providerPath, ChildData data, List<ChildData> currentData)
+    public void removeProvider(ConsumerConfig config, String providerPath, ChildData data, List<ChildData> currentData,
+                               List<ChildData> currentConfigurator)
         throws UnsupportedEncodingException {
         if (LOGGER.isInfoEnabled(config.getAppName())) {
             LOGGER.infoWithApp(config.getAppName(),
@@ -108,19 +112,21 @@ public class ZookeeperProviderObserver {
                     StringSerializer.decode(data.getData()) + "]" + ", stat=[" + data.getStat() + "]" + ", list=[" +
                     currentData.size() + "]");
         }
-        notifyListeners(config, providerPath, currentData, false);
+        notifyListeners(config, providerPath, currentData, currentConfigurator, false);
     }
 
     /**
      * Add provider
      *
-     * @param config       ConsumerConfig
-     * @param providerPath Provider path of zookeeper
-     * @param data         Event data
-     * @param currentData  provider data list
+     * @param config              ConsumerConfig
+     * @param providerPath        Provider path of zookeeper
+     * @param data                Event data
+     * @param currentData         provider data list
+     * @param currentConfigurator
      * @throws UnsupportedEncodingException decode error
      */
-    public void addProvider(ConsumerConfig config, String providerPath, ChildData data, List<ChildData> currentData)
+    public void addProvider(ConsumerConfig config, String providerPath, ChildData data, List<ChildData> currentData,
+                            List<ChildData> currentConfigurator)
         throws UnsupportedEncodingException {
         if (LOGGER.isInfoEnabled(config.getAppName())) {
             LOGGER.infoWithApp(config.getAppName(),
@@ -128,15 +134,16 @@ public class ZookeeperProviderObserver {
                     StringSerializer.decode(data.getData()) + "]" + ", stat=[" + data.getStat() + "]" + ", list=[" +
                     currentData.size() + "]");
         }
-        notifyListeners(config, providerPath, currentData, true);
+        notifyListeners(config, providerPath, currentData, currentConfigurator, true);
     }
 
-    private void notifyListeners(ConsumerConfig config, String providerPath, List<ChildData> currentData, boolean add)
+    private void notifyListeners(ConsumerConfig config, String providerPath, List<ChildData> currentData,
+                                 List<ChildData> currentConfigurator, boolean add)
         throws UnsupportedEncodingException {
         List<ProviderInfoListener> providerInfoListeners = providerListenerMap.get(config);
         if (CommonUtils.isNotEmpty(providerInfoListeners)) {
             List<ProviderInfo> providerInfos = ZookeeperRegistryHelper.convertUrlsToProviders(providerPath,
-                currentData);
+                currentData, currentConfigurator);
             List<ProviderInfo> providerInfosForProtocol = RegistryUtils.matchProviderInfos(config, providerInfos);
             for (ProviderInfoListener listener : providerInfoListeners) {
                 if (add) {

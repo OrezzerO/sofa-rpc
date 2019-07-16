@@ -16,6 +16,8 @@
  */
 package com.alipay.sofa.rpc.registry.zk;
 
+import com.alibaba.dubbo.common.URL;
+import com.alibaba.dubbo.common.utils.UrlUtils;
 import com.alipay.sofa.rpc.client.ProviderHelper;
 import com.alipay.sofa.rpc.client.ProviderInfo;
 import com.alipay.sofa.rpc.codec.common.StringSerializer;
@@ -38,9 +40,13 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.alipay.sofa.rpc.common.utils.StringUtils.CONTEXT_SEP;
 
 /**
  * Helper for ZookeeperRegistry
@@ -58,27 +64,69 @@ public class ZookeeperRegistryHelper extends RegistryUtils {
      * @throws UnsupportedEncodingException decode exception
      */
     static List<ProviderInfo> convertUrlsToProviders(String providerPath,
-                                                     List<ChildData> currentData) throws UnsupportedEncodingException {
+                                                     List<ChildData> currentData,
+                                                     List<ChildData> configuratorData)
+        throws UnsupportedEncodingException {
+        //todo 2019-07-04 10:43 单元测试
         List<ProviderInfo> providerInfos = new ArrayList<ProviderInfo>();
         if (CommonUtils.isEmpty(currentData)) {
             return providerInfos;
         }
+        Map<String, URL> configMap = parseConfig(providerPath, configuratorData);
 
         for (ChildData childData : currentData) {
-            providerInfos.add(convertUrlToProvider(providerPath, childData));
+            providerInfos.add(mergeConfigToProvider(providerPath, childData, configMap));
         }
+
         return providerInfos;
     }
 
-    static ProviderInfo convertUrlToProvider(String providerPath,
-                                             ChildData childData) throws UnsupportedEncodingException {
+    private static Map<String, URL> parseConfig(String providerPath, List<ChildData> configuratorData) throws UnsupportedEncodingException {
+        Map<String, URL> result = new HashMap<>();
+        String configuratorPath = getConfiguratorPath(providerPath);
+        for (ChildData configuratorDatum : configuratorData) {
+            String urlStr = configuratorDatum.getPath().substring(configuratorPath.length() + 1);
+            urlStr = URLDecoder.decode(urlStr, "UTF-8");
+            URL url = UrlUtils.parseURL(urlStr, null);
+            result.put(url.getHost() + url.getPort(), url);
+        }
+        return result;
+
+    }
+
+    private static String getConfiguratorPath(String providerPath) {
+        int sepIndex = providerPath.lastIndexOf(CONTEXT_SEP);
+        if (sepIndex >= 0) {
+            return providerPath.substring(0, sepIndex) + "/configurators";
+        }
+        return null;
+    }
+
+    static ProviderInfo mergeConfigToProvider(String providerPath,
+                                              ChildData childData, Map<String, URL> configMap)
+        throws UnsupportedEncodingException {
         String url = childData.getPath().substring(providerPath.length() + 1); // 去掉头部
         url = URLDecoder.decode(url, "UTF-8");
-        ProviderInfo providerInfo = ProviderHelper.toProviderInfo(url);
+        String mergedUrl = getMergedUrl(url, configMap);
+        ProviderInfo providerInfo = ProviderHelper.toProviderInfo(mergedUrl);
 
         processWarmUpWeight(providerInfo);
 
         return providerInfo;
+    }
+
+    private static String getMergedUrl(String url, Map<String, URL> configMap) {
+        URL originUrl = UrlUtils.parseURL(url, null);
+        URL configuratorUrl = configMap.get(originUrl.getIp() + originUrl.getPort());
+        URL newUrl = originUrl;
+        if (Optional.ofNullable(configuratorUrl).map(URL::getParameters).isPresent()) {
+            for (Map.Entry<String, String> entry : configuratorUrl.getParameters().entrySet()) {
+                newUrl = newUrl.addParameter(entry.getKey(), entry.getValue());
+
+            }
+        }
+
+        return newUrl.toFullString();
     }
 
     /**

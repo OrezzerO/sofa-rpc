@@ -62,6 +62,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static com.alipay.sofa.rpc.common.utils.StringUtils.CONTEXT_SEP;
+import static com.alipay.sofa.rpc.registry.utils.RegistryUtils.buildConfiguratorPath;
 import static com.alipay.sofa.rpc.registry.zk.ZookeeperRegistryHelper.buildConfigPath;
 import static com.alipay.sofa.rpc.registry.zk.ZookeeperRegistryHelper.buildConsumerPath;
 import static com.alipay.sofa.rpc.registry.zk.ZookeeperRegistryHelper.buildOverridePath;
@@ -301,19 +302,25 @@ public class ZookeeperRegistry extends Registry {
      * 接口配置{ConsumerConfig：PathChildrenCache} <br>
      * 例如：{ConsumerConfig ： PathChildrenCache }
      */
-    private static final ConcurrentMap<ConsumerConfig, PathChildrenCache> INTERFACE_PROVIDER_CACHE = new ConcurrentHashMap<ConsumerConfig, PathChildrenCache>();
+    private static final ConcurrentMap<ConsumerConfig, PathChildrenCache> INTERFACE_PROVIDER_CACHE              = new ConcurrentHashMap<ConsumerConfig, PathChildrenCache>();
+
+    /**
+     * 接口配置{ConsumerConfig：PathChildrenCache} <br>
+     * 例如：{ConsumerConfig ： PathChildrenCache }
+     */
+    private static final ConcurrentMap<ConsumerConfig, PathChildrenCache> INTERFACE_PROVIDER_CONFIGURATOR_CACHE = new ConcurrentHashMap<ConsumerConfig, PathChildrenCache>();
 
     /**
      * 接口配置{接口配置路径：PathChildrenCache} <br>
      * 例如：{/sofa-rpc/com.alipay.sofa.rpc.example/configs ： PathChildrenCache }
      */
-    private static final ConcurrentMap<String, PathChildrenCache>         INTERFACE_CONFIG_CACHE   = new ConcurrentHashMap<String, PathChildrenCache>();
+    private static final ConcurrentMap<String, PathChildrenCache>         INTERFACE_CONFIG_CACHE                = new ConcurrentHashMap<String, PathChildrenCache>();
 
     /**
      * IP配置{接口配置路径：PathChildrenCache} <br>
      * 例如：{/sofa-rpc/com.alipay.sofa.rpc.example/overrides ： PathChildrenCache }
      */
-    private static final ConcurrentMap<String, PathChildrenCache>         INTERFACE_OVERRIDE_CACHE = new ConcurrentHashMap<String, PathChildrenCache>();
+    private static final ConcurrentMap<String, PathChildrenCache>         INTERFACE_OVERRIDE_CACHE              = new ConcurrentHashMap<String, PathChildrenCache>();
 
     @Override
     public void register(ProviderConfig config) {
@@ -579,17 +586,21 @@ public class ZookeeperRegistry extends Registry {
                     providerObserver = new ZookeeperProviderObserver();
                 }
                 final String providerPath = buildProviderPath(rootPath, config);
+                final String configuratorPath = buildConfiguratorPath(rootPath, config);
                 if (LOGGER.isInfoEnabled(appName)) {
                     LOGGER.infoWithApp(appName, LogCodes.getLog(LogCodes.INFO_ROUTE_REGISTRY_SUB, providerPath));
                 }
                 PathChildrenCache pathChildrenCache = INTERFACE_PROVIDER_CACHE.get(config);
+                PathChildrenCache configuratorCache = INTERFACE_PROVIDER_CONFIGURATOR_CACHE.get(config);
                 if (pathChildrenCache == null) {
                     // 监听配置节点下 子节点增加、子节点删除、子节点Data修改事件
                     ProviderInfoListener providerInfoListener = config.getProviderInfoListener();
                     providerObserver.addProviderListener(config, providerInfoListener);
                     // TODO 换成监听父节点变化（只是监听变化了，而不通知变化了什么，然后客户端自己来拉数据的）
                     pathChildrenCache = new PathChildrenCache(zkClient, providerPath, true);
+                    configuratorCache = new PathChildrenCache(zkClient, configuratorPath, true);
                     final PathChildrenCache finalPathChildrenCache = pathChildrenCache;
+                    final PathChildrenCache finalConfiguratorCache = configuratorCache;
                     pathChildrenCache.getListenable().addListener(new PathChildrenCacheListener() {
                         @Override
                         public void childEvent(CuratorFramework client1, PathChildrenCacheEvent event) throws Exception {
@@ -600,26 +611,53 @@ public class ZookeeperRegistry extends Registry {
                             switch (event.getType()) {
                                 case CHILD_ADDED: //加了一个provider
                                     providerObserver.addProvider(config, providerPath, event.getData(),
-                                        finalPathChildrenCache.getCurrentData());
+                                        finalPathChildrenCache.getCurrentData(),
+                                        finalConfiguratorCache.getCurrentData());
                                     break;
                                 case CHILD_REMOVED: //删了一个provider
                                     providerObserver.removeProvider(config, providerPath, event.getData(),
-                                        finalPathChildrenCache.getCurrentData());
+                                        finalPathChildrenCache.getCurrentData(),
+                                        finalConfiguratorCache.getCurrentData());
                                     break;
                                 case CHILD_UPDATED: // 更新一个Provider
                                     providerObserver.updateProvider(config, providerPath, event.getData(),
-                                        finalPathChildrenCache.getCurrentData());
+                                        finalPathChildrenCache.getCurrentData(),
+                                        finalConfiguratorCache.getCurrentData());
                                     break;
                                 default:
                                     break;
                             }
                         }
                     });
+
+                    configuratorCache.getListenable().addListener(new PathChildrenCacheListener() {
+                        @Override
+                        public void childEvent(CuratorFramework client1, PathChildrenCacheEvent event) throws Exception {
+                            if (LOGGER.isDebugEnabled(config.getAppName())) {
+                                LOGGER.debugWithApp(config.getAppName(),
+                                    "Receive zookeeper event: " + "type=[" + event.getType() + "]");
+                            }
+                            switch (event.getType()) {
+                                case CHILD_ADDED:
+                                case CHILD_REMOVED:
+                                case CHILD_UPDATED: // 更新一个Provider
+                                    providerObserver.updateProvider(config, providerPath, event.getData(),
+                                        finalPathChildrenCache.getCurrentData(),
+                                        finalConfiguratorCache.getCurrentData());
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                    });
+
                     pathChildrenCache.start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+                    configuratorCache.start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
                     INTERFACE_PROVIDER_CACHE.put(config, pathChildrenCache);
+                    INTERFACE_PROVIDER_CONFIGURATOR_CACHE.putIfAbsent(config, configuratorCache);
                 }
                 List<ProviderInfo> providerInfos = ZookeeperRegistryHelper.convertUrlsToProviders(
-                    providerPath, pathChildrenCache.getCurrentData());
+                    providerPath, pathChildrenCache.getCurrentData(), configuratorCache.getCurrentData());
                 matchProviders = ZookeeperRegistryHelper.matchProviderInfos(config, providerInfos);
             } catch (Exception e) {
                 throw new SofaRpcRuntimeException("Failed to subscribe provider from zookeeperRegistry!", e);

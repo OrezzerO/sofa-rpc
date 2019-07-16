@@ -6,7 +6,7 @@
 
     <groupId>com.alipay.sofa</groupId>
     <artifactId>sofa-rpc-bom</artifactId>
-    <version>5.6.0</version>
+    <version>5.6.111-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
@@ -20,7 +20,7 @@
         <jaxrs.api.version>1.0.2.Final</jaxrs.api.version>
         <cxf.version>3.0.14</cxf.version>
         <jetty.version>7.5.4.v20111024</jetty.version>
-        <curator.version>4.0.1</curator.version>
+        <curator.version>2.13.0</curator.version>
         <opentracing.version>0.22.0</opentracing.version>
         <dubbo.version>2.4.10</dubbo.version>
         <nacos.version>1.0.0</nacos.version>

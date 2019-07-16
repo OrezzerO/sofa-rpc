@@ -212,7 +212,7 @@ public class RpcConstants {
     /**
      * bolt server process timeout discard in process
      *
-     * @since 5.6.0
+     * @since 5.6.111-SNAPSHOT
      */
     public static final String  TIMEOUT_DISCARD_IN_SERVER          = "timeoutDiscard";
 

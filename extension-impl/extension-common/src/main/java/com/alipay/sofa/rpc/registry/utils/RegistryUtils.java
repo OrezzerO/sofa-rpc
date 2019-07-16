@@ -194,6 +194,10 @@ public class RegistryUtils {
         return rootPath + "sofa-rpc/" + config.getInterfaceId() + "/providers";
     }
 
+    public static String buildConfiguratorPath(String rootPath, AbstractInterfaceConfig config) {
+        return rootPath + "sofa-rpc/" + config.getInterfaceId() + "/configurators";
+    }
+
     public static String buildConsumerPath(String rootPath, AbstractInterfaceConfig config) {
         return rootPath + "sofa-rpc/" + config.getInterfaceId() + "/consumers";
     }
